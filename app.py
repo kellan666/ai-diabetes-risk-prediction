@@ -1,14 +1,11 @@
-
 import streamlit as st
 import pandas as pd
+import numpy as np
 import joblib
 
-# Load trained model and preprocessing tools
+# Load only the trained model
 model = joblib.load("diabetes_model.pkl")
-imputer = joblib.load("diabetes_imputer.pkl")
-scaler = joblib.load("diabetes_scaler.pkl")
 
-# Page configuration
 st.set_page_config(
     page_title="AI Diabetes Risk Prediction",
     page_icon="🩺",
@@ -20,7 +17,6 @@ st.write("Enter the health information below to estimate diabetes risk.")
 
 st.divider()
 
-# Input fields
 pregnancies = st.number_input(
     "Pregnancies",
     min_value=0,
@@ -79,42 +75,65 @@ age = st.number_input(
 
 st.divider()
 
-# Prediction button
 if st.button("🔍 Predict Diabetes Risk", use_container_width=True):
 
-    data = [[
-        pregnancies,
-        glucose,
-        blood_pressure,
-        skin_thickness,
-        insulin,
-        bmi,
-        diabetes_pedigree,
-        age
-    ]]
+    # Create input DataFrame
+    input_data = pd.DataFrame([{
+        "Pregnancies": pregnancies,
+        "Glucose": glucose,
+        "BloodPressure": blood_pressure,
+        "SkinThickness": skin_thickness,
+        "Insulin": insulin,
+        "BMI": bmi,
+        "DiabetesPedigreeFunction": diabetes_pedigree,
+        "Age": age
+    }])
 
-    # Convert to DataFrame
-    input_data = pd.DataFrame(
-        data,
-        columns=[
-            "Pregnancies",
-            "Glucose",
-            "BloodPressure",
-            "SkinThickness",
-            "Insulin",
-            "BMI",
-            "DiabetesPedigreeFunction",
-            "Age"
-        ]
-    )
+    # IMPORTANT:
+    # These values reproduce the preprocessing used during model training.
+    medians = {
+        "Glucose": 117.0,
+        "BloodPressure": 72.0,
+        "SkinThickness": 23.0,
+        "Insulin": 125.0,
+        "BMI": 32.0
+    }
 
-    # Apply preprocessing
-    input_imputed = imputer.transform(input_data)
-    input_scaled = scaler.transform(input_imputed)
+    for column, median_value in medians.items():
+        if input_data[column].iloc[0] == 0:
+            input_data[column] = median_value
+
+    # Scaling parameters from the training dataset
+    means = np.array([
+        3.845,
+        120.895,
+        69.105,
+        20.536,
+        79.799,
+        31.993,
+        0.472,
+        33.241
+    ])
+
+    stds = np.array([
+        3.367,
+        31.973,
+        19.356,
+        15.952,
+        115.244,
+        7.878,
+        0.331,
+        11.760
+    ])
+
+    X = input_data.values.astype(float)
+
+    # Standardize exactly like StandardScaler
+    X_scaled = (X - means) / stds
 
     # Prediction
-    prediction = model.predict(input_scaled)
-    probability = model.predict_proba(input_scaled)[0][1] * 100
+    prediction = model.predict(X_scaled)
+    probability = model.predict_proba(X_scaled)[0][1] * 100
 
     st.subheader("Prediction Result")
 
